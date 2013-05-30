@@ -19,19 +19,21 @@ function main() {
          property calledFrom, which is a list of all the functions it has been 
         called from and flagged. */
         runData.inline = {};
-        var matchPattern = "Did not inline ([^ ]*) called from ([^ ]*) \((.*)?\).";
         for (var i = 0; i < lines.length; i++) {
             var line = lines[i];
-            var result = line.match(matchPattern);
-            if (result) {
-                handleMatch(result);
-            }
+            processOutputLine(line);
         }
         findTry(tree);
     });
 }
 
-function handleMatch(result) {
+/* Processes a line returned by stdout when V8 is run. */
+function processOutputLine(line) {
+    var matchPattern = "Did not inline ([^ ]*) called from ([^ ]*) \((.*)?\).";
+    var result = line.match(matchPattern);
+    if (!result) {
+        return;
+    }
     var fcnName = result[1];
     var callingFcn = result[2];
     var message = result[3];
@@ -53,6 +55,7 @@ function prettyObj(obj) {
     return JSON.stringify(obj, undefined, 2); // Use 2 spaces for indentation
 }
 
+/* Processes a try object and outputs optimization suggestions. */
 function isTry(obj, currFcn) {
     if (obj && obj.type =="TryStatement") {
         console.log("Offending code: starting at Line " + obj.loc.start.line + " in function " + currFcn);
@@ -71,9 +74,7 @@ function findTry(ast) {
 
 /* Big comments in the middle of functions prevent the functions from being inlined */
 function isBigComment(obj, currFcn) {
-    if (obj && obj.type == "FunctionDeclaration") {
-        console.log(content.slice(obj.range[0], obj.range[1]));
-    }
+    // TODO
 }
 
 function findBigComment(ast) {
@@ -82,6 +83,7 @@ function findBigComment(ast) {
 
 // from https://github.com/ariya/esprima/blob/master/examples/findbooleantrap.js
 // Executes visitor on the object and its children (recursively).
+// Tracks the current containing function.
 function traverse(object, visitor, currFcn) {
     var key, child;
 
