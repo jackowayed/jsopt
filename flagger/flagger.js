@@ -14,7 +14,8 @@ function main() {
     var filename = "./fieldCheck.js";
     content = fs.readFileSync(filename, "utf-8");
     createParamTraceContext();  // Replace with your instrumentation function here.
-    newContent = instrumentParamTypes(content);  // Replace with your desired instrumentation
+   // newContent = instrumentParamTypes(content);  // Replace with your desired instrumentation
+    newContent = instrumentFieldTypes(content);
     try {
         eval(newContent);
         global.PARAMTRACE.printResults();
@@ -51,7 +52,7 @@ function instrumentParamTypes(code) {
     return code
 }
 
-function instrumentParamTypes(code) {					    
+function instrumentFieldTypes(code) {					    
     tracer = esmorph.Tracer.FunctionEntrance(function (fn) {
 	var mods = {}
 	var realBody = fn.body.body;
