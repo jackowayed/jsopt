@@ -13,10 +13,11 @@ function main() {
     // var filename = "../../floitsch-downloads/optimizing-for-v8/trace-inlining2.js";
     var filename = "./foo.js";
     content = fs.readFileSync(filename, "utf-8");
-    createTraceContexts();  // Define your instrumentation function in here.
-    newContent = instrumentParamTypes(content);  // Replace this with your desired instrumentation
+    createParamTraceContext();  // Replace with your instrumentation function here.
+    newContent = instrumentParamTypes(content);  // Replace with your desired instrumentation
     try {
         eval(newContent);
+        global.PARAMTRACE.printResults();
     } catch (error) {
         console.log("Error: evaluation of instrumented content failed.")
         console.log(error);
@@ -30,9 +31,14 @@ function main() {
 
 function instrumentParamTypes(code) {
     tracer = esmorph.Tracer.FunctionEntrance(function (fn) {
-        paramNames = _.pluck(fn.paramData, "name")
-        paramList = "[" + paramNames.join(",") + "]"
-        // console.log(prettyPrint(fn.params));
+        var paramNames = _.pluck(fn.paramData, "name")
+        /* Construct a mapping from the parameter name to the parameter value 
+            (which is accessed with the raw name inserted into the function call). */
+        var paramPartials = _.map(paramNames, function(name) {
+            return "'" + name + "': " + name;
+        });
+        var paramList = "{" + paramPartials.join(",") + "}"
+
          signature = 'global.PARAMTRACE.functionStart({ ';
             signature += 'paramValues: ' + paramList + ', ';  // the context-specific param values
             signature += 'fcnName: "' + fn.name + '", ';  // the function name
@@ -45,46 +51,70 @@ function instrumentParamTypes(code) {
     return code
 }
 
-function createTraceContexts() {
-    global.FCNPARAMS = {};  // Map function names to their param list.
-    // setupParamLists(global.FCNPARAMS);
+/* Creates the context global.PARAMTRACE for instrumenting parameters and
+detecting functions that are called with parameters of different types. */
+function createParamTraceContext() {
      global.PARAMTRACE = {
-         paramTypes: {},  // Map functions to arrays of param types, empty if none.
+         paramData: {},  // Map functions to arrays of param types, empty if none.
+         mismatches: {}, // Map type-mismatching functions to error messages
+         /* A call to functionStart should be inserted at the beginning of each 
+         function. functionStart is given the parameter names and values, and updates
+         paramData with information on the types of the parameters. 
+         Updates the mismatches object with data on functions called with different
+         types for the same parameter. */
          functionStart: function (data) {
-            // console.log("PARAMS: ") + data.params;
-            fcnName = data.fcnName;
-            paramNames = data.paramNames;
-            paramValues = data.paramValues;
-            // if (!_.has(this.paramTypes, fcnName) ) {
-            //     this.paramTypes[fcnName] = {}
-            //      For each parameter name for this function, add a mapping
-            //     from the param name to an empty array. 
-            //     for (var i = 0; i < data.params.length; i++) {
-            //         this.paramTypes[fcnName][params[i]] = []
-            //     }
-            // }
-
-             // var key = info.name + ':' + info.range[0];
-             // if (this.hits.hasOwnProperty(key)) {
-             //     this.hits[key] = this.hits[key] + 1;
-             // } else {
-             //     this.hits[key] = 1;
-             // }
+            var fcnName = data.fcnName;
+            var paramNames = data.paramNames;  // The parameter list.
+            /* A mapping from a parameter name to the parameter value for all 
+            parameters in the parameter list. */
+            var paramValues = data.paramValues;
+            if (!_.has(this.paramData, fcnName) ) {
+                /* Initialize the mapping */
+                this.paramData[fcnName] = {}
+                /* For each parameter name for this function, add a mapping 
+                from the param name to an empty array. */
+                for (var i = 0; i < data.paramNames.length; i++) {
+                    var paramValueType = getType(paramValues[paramNames[i]])
+                    this.paramData[fcnName][paramNames[i]] = [paramValueType]
+                }
+            }
+            else {
+                /* Compare each param type against the previous type. */
+                for (var i = 0; i < data.paramNames.length; i++) {
+                    var currValue = paramValues[paramNames[i]];
+                    var currType = getType(currValue)
+                    var prevType = this.paramData[fcnName][paramNames[i]];
+                    if (prevType != currType) {
+                        // Mismatch
+                        if (!_.has(this.mismatches, fcnName)) {
+                            this.mismatches[fcnName] = [];
+                        }
+                        var message = "Mismatch: parameter " + currValue + " of type " + currType + " does not match previous parameter of type " + prevType + ".";
+                        this.mismatches[fcnName].push(message);
+                    }
+                }
+                
+            }
+         },
+         /* Should be called after the instrumented code has been executed. 
+         Prints the results of the parameter type mismatch tracking.*/
+         printResults: function() {
+            console.log("==Functions with type mismatches== ")
+            _.each(this.mismatches, function(value, key) {
+                console.log("Function: " + key);
+                _.each(value, function(message) {
+                    console.log("\t" + message)
+                });
+            });
          }
-         // getHistogram: function () {
-         //     var entry,
-         //         sorted = [];
-         //     for (entry in this.hits) {
-         //         if (this.hits.hasOwnProperty(entry)) {
-         //             sorted.push({ name: entry, count: this.hits[entry]});
-         //         }
-         //     }
-         //     sorted.sort(function (a, b) {
-         //         return b.count - a.count;
-         //     });
-         //     return sorted;
-         // }
      };
+ }
+
+
+/* See http://javascriptweblog.wordpress.com/2011/08/08/fixing-the-javascript-typeof-operator/ 
+*/
+function getType (obj) {
+   return ({}).toString.call(obj).match(/\s([a-z|A-Z]+)/)[1].toLowerCase();
  }
 
  /* ========= Try-catch detection/analysis ========*/

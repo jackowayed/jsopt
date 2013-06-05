@@ -21,4 +21,7 @@ lines xs*/
     return "a";
 }
 a("hello")
-b("harry", "potter")
+a({})
+a(null)
+b("harry", 4)
+b("another", "something")
