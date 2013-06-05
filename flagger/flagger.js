@@ -45,7 +45,7 @@ function instrument(code) {
 function createTraceContexts() {
     global.FCNPARAMS = {};  // Map function names to their param list.
     // setupParamLists(global.FCNPARAMS);
-     global.PARAMTRACE = {
+    global.PARAMTRACE = {
          paramTypes: {},  // Map functions to arrays of param types, empty if none.
          functionStart: function (data) {
             // console.log("PARAMS: ") + data.params;
@@ -66,6 +66,9 @@ function createTraceContexts() {
              //     this.hits[key] = 1;
              // }
          }
+	global.FIELDTRACE = {
+	    
+	}
          // getHistogram: function () {
          //     var entry,
          //         sorted = [];
