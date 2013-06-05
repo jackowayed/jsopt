@@ -13,32 +13,35 @@ function main() {
     // var filename = "../../floitsch-downloads/optimizing-for-v8/trace-inlining2.js";
     var filename = "./foo.js";
     content = fs.readFileSync(filename, "utf-8");
-    createTraceContexts();
-    newContent = instrument(content);
-    exec(newContent);
+    createTraceContexts();  // Define your instrumentation function in here.
+    newContent = instrumentParamTypes(content);  // Replace this with your desired instrumentation
+    try {
+        eval(newContent);
+    } catch (error) {
+        console.log("Error: evaluation of instrumented content failed.")
+        console.log(error);
+    }
     // console.log(newContent);
-    // On other systems might need to change to ./d8
     // tryCatch(filename)
 }
 
 /* ========= Code instrumentation ========*/
 
 
-function instrument(code) {
+function instrumentParamTypes(code) {
     tracer = esmorph.Tracer.FunctionEntrance(function (fn) {
+        paramNames = _.pluck(fn.paramData, "name")
+        paramList = "[" + paramNames.join(",") + "]"
         // console.log(prettyPrint(fn.params));
-         signature = 'PARAMTRACE.functionStart({ ';
-            signature += 'params: ' + JSON.stringify(fn.params) + '", ';
-            signature += 'name: "' + fn.name + '", ';
-            // signature += 'lineNumber: ' + fn.loc.start.line + ', ';
-            // signature += 'range: [' + fn.range[0] + ',' + fn.range[1] + ']';
+         signature = 'global.PARAMTRACE.functionStart({ ';
+            signature += 'paramValues: ' + paramList + ', ';  // the context-specific param values
+            signature += 'fcnName: "' + fn.name + '", ';  // the function name
+            signature += 'paramNames: ' + JSON.stringify(paramNames);  // the names of the params
          signature += ' });';
-        // console.log(this)
          return signature;
      });
     code = esmorph.modify(code, tracer);
     code = '(function() {\n' + code + '\n}())';
-
     return code
 }
 
@@ -49,15 +52,17 @@ function createTraceContexts() {
          paramTypes: {},  // Map functions to arrays of param types, empty if none.
          functionStart: function (data) {
             // console.log("PARAMS: ") + data.params;
-            fcnName = data.name;
-            if (!_.has(this.paramTypes, fcnName) ) {
-                this.paramTypes[fcnName] = {}
-                /* For each parameter name for this function, add a mapping
-                from the param name to an empty array. */
-                for (var i = 0; i < data.params.length; i++) {
-                    this.paramTypes[fcnName][params[i]] = []
-                }
-            }
+            fcnName = data.fcnName;
+            paramNames = data.paramNames;
+            paramValues = data.paramValues;
+            // if (!_.has(this.paramTypes, fcnName) ) {
+            //     this.paramTypes[fcnName] = {}
+            //      For each parameter name for this function, add a mapping
+            //     from the param name to an empty array. 
+            //     for (var i = 0; i < data.params.length; i++) {
+            //         this.paramTypes[fcnName][params[i]] = []
+            //     }
+            // }
 
              // var key = info.name + ':' + info.range[0];
              // if (this.hits.hasOwnProperty(key)) {
@@ -84,6 +89,7 @@ function createTraceContexts() {
 
  /* ========= Try-catch detection/analysis ========*/
  function tryCatch(filename) {
+    // On other systems might need to change to ./d8
      var tree = esprima.parse(content, { tolerant: true, loc: true, range: true });
      exec("d8 --trace-inlining " + filename, function(error, stdout, stderr) {
          lines = stdout.split("\n");
