@@ -1,5 +1,5 @@
 
-function a() {
+function a(onlyParam) {
   // Life, Universe, and Everything
   try {
     var answer = 6 * 7;
@@ -9,7 +9,7 @@ function a() {
 }
 
 
-function b() {
+function b(first, second) {
 /* Here is a comment
 spanning multiple
 lines xs*/
@@ -20,3 +20,5 @@ lines xs*/
     }
     return "a";
 }
+a()
+b()
