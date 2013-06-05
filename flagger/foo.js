@@ -20,5 +20,5 @@ lines xs*/
     }
     return "a";
 }
-a()
-b()
+a("hello")
+b("harry", "potter")

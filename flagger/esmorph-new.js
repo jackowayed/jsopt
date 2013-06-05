@@ -196,7 +196,7 @@
                         name: name,
                         line: line,
                         range: range,
-                        params: params  // Added for flagger.js
+                        paramData: params  // Added for flagger.js
                     });
                 } else {
                     signature = traceName + '({ ';
