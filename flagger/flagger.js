@@ -11,7 +11,7 @@ main();
 
 function main() {
     // var filename = "../../floitsch-downloads/optimizing-for-v8/trace-inlining2.js";
-    var filename = "./foo.js";
+    var filename = "./fieldCheck.js";
     content = fs.readFileSync(filename, "utf-8");
     createTraceContexts();  // Define your instrumentation function in here.
     newContent = instrumentParamTypes(content);  // Replace this with your desired instrumentation
@@ -33,9 +33,9 @@ function instrumentParamTypes(code) {
         paramNames = _.pluck(fn.paramData, "name")
         paramList = "[" + paramNames.join(",") + "]"
         // console.log(prettyPrint(fn.params));
-         signature = 'global.PARAMTRACE.functionStart({ ';
-            signature += 'paramValues: ' + paramList + ', ';  // the context-specific param values
-            signature += 'fcnName: "' + fn.name + '", ';  // the function name
+        signature = 'global.PARAMTRACE.functionStart({ ';
+        signature += 'paramValues: ' + paramList + ', ';  // the context-specific param values
+        signature += 'fcnName: "' + fn.name + '", ';  // the function name
             signature += 'paramNames: ' + JSON.stringify(paramNames);  // the names of the params
          signature += ' });';
          return signature;
@@ -44,6 +44,42 @@ function instrumentParamTypes(code) {
     code = '(function() {\n' + code + '\n}())';
     return code
 }
+
+function instrumentParamTypes(code) {					    
+    tracer = esmorph.Tracer.FunctionEntrance(function (fn) {
+	var mods = {}
+	var realBody = fn.body.body;
+	//TODO check if it's a block statement?
+	for(var i = 0; i < realBody.length; i++) {
+	    var line = realBody[i];
+	    if(line.type != "ExpressionStatement" ||
+	    line.expression.type != "AssignmentExpression" ||
+	    line.expression.left.type != "MemberExpression") continue;
+	    //console.log("exp:");
+	    //console.log(line.expression.left);
+	    objName = line.expression.left.object.name;
+	    fieldName = line.expression.left.property.name;
+	    if(!(objName in mods)){
+		mods[objName] = {};	
+	    }
+	    mods[objName][fieldName] = true;
+	}
+	console.log(mods);
+	modString = JSON.stringify(mods);
+	console.log(modString);
+        signature = 'global.FIELDTRACE.functionStart({ ';
+	signature += 'modFields:' + modString + ',';
+        //signature += 'paramValues: ' + codeData + ', ';
+        //signature += 'fcnName: "' + fn.name + '", ';
+        //signature += 'paramNames: ' + JSON.stringify(paramNames);  // the names of the params
+        signature += ' });';
+        return signature;
+    });
+    code = esmorph.modify(code, tracer);
+    code = '(function() {\n' + code + '\n}())';
+    return code
+}
+
 
 function createTraceContexts() {
     global.FCNPARAMS = {};  // Map function names to their param list.
@@ -71,9 +107,6 @@ function createTraceContexts() {
              //     this.hits[key] = 1;
              // }
          }
-	global.FIELDTRACE = {
-	    
-	}
          // getHistogram: function () {
          //     var entry,
          //         sorted = [];
@@ -88,6 +121,14 @@ function createTraceContexts() {
          //     return sorted;
          // }
      };
+    global.FIELDTRACE = {
+	functionStart: function(modData) {
+	    console.log("Checking on object adding!");
+	    for(obj in modData) {
+		
+	    }
+	}
+    };
  }
 
  /* ========= Try-catch detection/analysis ========*/

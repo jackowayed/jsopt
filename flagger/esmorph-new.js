@@ -191,12 +191,14 @@
                 range = functionList[i].node.range;
                 pos = functionList[i].node.body.range[0] + 1;
                 var params = functionList[i].node.params;
+		var body = functionList[i].node.body;
                 if (typeof traceName === 'function') {
                     signature = traceName.call(null, {
                         name: name,
                         line: line,
                         range: range,
-                        paramData: params  // Added for flagger.js
+                        paramData: params,  // Added for flagger.js
+			body: body, // Added for flagger.js field mod check
                     });
                 } else {
                     signature = traceName + '({ ';
