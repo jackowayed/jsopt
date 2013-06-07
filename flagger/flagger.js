@@ -12,13 +12,17 @@ main();
 function main() {
     // var filename = "../../floitsch-downloads/optimizing-for-v8/trace-inlining2.js";
     var filename = "./fieldCheck.js";
+    //var filename = "./foo.js";
     content = fs.readFileSync(filename, "utf-8");
-    createParamTraceContext();  // Replace with your instrumentation function here.
-   // newContent = instrumentParamTypes(content);  // Replace with your desired instrumentation
+    createParamTraceContext();
+    createFieldContext();
+    //newContent = instrumentParamTypes(content);  // Replace with your desired instrumentation
     newContent = instrumentFieldTypes(content);
+    console.log(newContent);
     try {
         eval(newContent);
-        global.PARAMTRACE.printResults();
+        //global.PARAMTRACE.printResults();
+	global.FIELDTRACE.printResults();
     } catch (error) {
         console.log("Error: evaluation of instrumented content failed.")
         console.log(error);
@@ -62,23 +66,23 @@ function instrumentFieldTypes(code) {
 	    if(line.type != "ExpressionStatement" ||
 	    line.expression.type != "AssignmentExpression" ||
 	    line.expression.left.type != "MemberExpression") continue;
-	    //console.log("exp:");
-	    //console.log(line.expression.left);
-	    objName = line.expression.left.object.name;
-	    fieldName = line.expression.left.property.name;
+	    var objName = line.expression.left.object.name;
+	    var fieldName = line.expression.left.property.name;
 	    if(!(objName in mods)){
 		mods[objName] = {};	
 	    }
 	    mods[objName][fieldName] = true;
 	}
-	console.log(mods);
-	modString = JSON.stringify(mods);
-	console.log(modString);
-        signature = 'global.FIELDTRACE.functionStart({ ';
-	signature += 'modFields:' + modString + ',';
-        //signature += 'paramValues: ' + codeData + ', ';
-        //signature += 'fcnName: "' + fn.name + '", ';
-        //signature += 'paramNames: ' + JSON.stringify(paramNames);  // the names of the params
+	var modString = JSON.stringify(mods);
+	var varPartials = _.map(_.keys(mods), function(name) {
+            return "'" + name + "': " + name;
+        });
+	var varList = "{" + varPartials.join(",") + "}";
+        var signature = 'global.FIELDTRACE.functionStart({ ';
+	signature += 'varList: ' + varList + ',';
+	signature += 'modFields: ' + modString + ',';
+        signature += 'fcnName: "' + fn.name + '", ';
+	//signature += 'context: this,';
         signature += ' });';
         return signature;
     });
@@ -87,6 +91,25 @@ function instrumentFieldTypes(code) {
     return code
 }
 
+function Logger(headerMessage) {
+    this.headerMessage = headerMessage;
+    this.messageData = {};
+    this.print = function() {
+	console.log(this.headerMessage);
+	_.each(this.messageData, function(value, key) {
+            console.log("In function: " + key);
+            _.each(value, function(message) {
+		console.log("\t" + message)
+            });
+	});
+    }
+    this.addMessage = function(fnName, message) {
+	if (!_.has(this.messageData, fnName)) {
+            this.messageData[fnName] = [];
+	}
+	this.messageData[fnName].push(message);
+    }
+}
 
 /* Creates the context global.PARAMTRACE for instrumenting parameters and
 detecting functions that are called with parameters of different types. */
@@ -145,16 +168,28 @@ function createParamTraceContext() {
             });
          }
      };
-    global.FIELDTRACE = {
-	functionStart: function(modData) {
-	    console.log("Checking on object adding!");
-	    for(obj in modData) {
-		
-	    }
-	}
-    };
  }
 
+function createFieldContext() {
+    global.FIELDTRACE = {
+	logger: new Logger("==Fields added to objects on the fly=="),
+	functionStart: function(modData) {
+   	    console.log(modData);
+	    var fields =  modData.modFields;
+	    for(var obj in fields) {
+		for(var field in fields[obj]) {
+		    if(!(field in modData.varList[obj])) {
+			var message = "Field " + field + " added to " + obj;
+			this.logger.addMessage(modData.fcnName, message);
+		    }
+		}
+	    }
+	},
+	printResults: function() {
+	    this.logger.print();
+	}
+    };
+}
 
 /* See http://javascriptweblog.wordpress.com/2011/08/08/fixing-the-javascript-typeof-operator/ 
 */
