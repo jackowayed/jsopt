@@ -11,17 +11,18 @@ main();
 
 function main() {
     // var filename = "../../floitsch-downloads/optimizing-for-v8/trace-inlining2.js";
-    var filename = "./fieldCheck.js";
-    //var filename = "./foo.js";
+    //var filename = "./fieldCheck.js";
+    var filename = "./foo.js";
     content = fs.readFileSync(filename, "utf-8");
     createParamTraceContext();
     createFieldContext();
-    //newContent = instrumentParamTypes(content);  // Replace with your desired instrumentation
-    newContent = instrumentFieldTypes(content);
-    console.log(newContent);
+    newContent_param = instrumentParamTypes(content);  // Replace with your desired instrumentation
+    newContent_field = instrumentFieldTypes(content);
+    //console.log(newContent);
     try {
-        eval(newContent);
-        //global.PARAMTRACE.printResults();
+        eval(newContent_param);
+	eval(newContent_field);
+        global.PARAMTRACE.printResults();
 	global.FIELDTRACE.printResults();
     } catch (error) {
         console.log("Error: evaluation of instrumented content failed.")
@@ -117,7 +118,7 @@ function createParamTraceContext() {
      global.PARAMTRACE = {
          paramData: {},  // Map functions to arrays of param types, empty if none.
 	 mismatches: new Logger("==Functions with type mismatches== "), 
-         //mismatches: {}, // Map type-mismatching functions to error messages
+
          /* A call to functionStart should be inserted at the beginning of each 
          function. functionStart is given the parameter names and values, and updates
          paramData with information on the types of the parameters. 
@@ -147,12 +148,8 @@ function createParamTraceContext() {
                     var prevType = this.paramData[fcnName][paramNames[i]];
                     if (prevType != currType) {
                         // Mismatch
-                        /*if (!_.has(this.mismatches, fcnName)) {
-                            this.mismatches[fcnName] = [];
-                        } */
                         var message = "Mismatch: parameter " + currValue + " of type " + currType + " does not match previous parameter of type " + prevType + ".";
-			this.
-                        //this.mismatches[fcnName].push(message);
+			this.mismatches.addMessage(fcnName, message);
                     }
                 }
                 
@@ -161,13 +158,7 @@ function createParamTraceContext() {
          /* Should be called after the instrumented code has been executed. 
          Prints the results of the parameter type mismatch tracking.*/
          printResults: function() {
-            console.log("==Functions with type mismatches== ")
-            _.each(this.mismatches, function(value, key) {
-                console.log("Function: " + key);
-                _.each(value, function(message) {
-                    console.log("\t" + message)
-                });
-            });
+	     this.mismatches.print();
          }
      };
  }
