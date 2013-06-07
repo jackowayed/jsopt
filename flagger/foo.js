@@ -25,3 +25,6 @@ a({})
 a(null)
 b("harry", 4)
 b("another", "something")
+
+var person = {firstname:"John",lastname:"Doe"};  
+person.lastname.suffix = "DR";

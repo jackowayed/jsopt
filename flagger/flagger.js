@@ -67,12 +67,16 @@ function instrumentFieldTypes(code) {
 	    if(line.type != "ExpressionStatement" ||
 	    line.expression.type != "AssignmentExpression" ||
 	    line.expression.left.type != "MemberExpression") continue;
-	    var objName = line.expression.left.object.name;
-	    var fieldName = line.expression.left.property.name;
-	    if(!(objName in mods)){
-		mods[objName] = {};	
-	    }
-	    mods[objName][fieldName] = true;
+        var cur = line.expression.left;
+        while (cur.type === "MemberExpression") {
+	        var objName = line.expression.left.object.name;
+	        var fieldName = line.expression.left.property.name;
+	        if(!(objName in mods)) {
+		    mods[objName] = {};	
+	        }
+	        mods[objName][fieldName] = true;
+            cur = cur.object;
+        }
 	}
 	var modString = JSON.stringify(mods);
 	var varPartials = _.map(_.keys(mods), function(name) {
