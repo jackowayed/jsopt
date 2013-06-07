@@ -116,7 +116,8 @@ detecting functions that are called with parameters of different types. */
 function createParamTraceContext() {
      global.PARAMTRACE = {
          paramData: {},  // Map functions to arrays of param types, empty if none.
-         mismatches: {}, // Map type-mismatching functions to error messages
+	 mismatches: new Logger("==Functions with type mismatches== "), 
+         //mismatches: {}, // Map type-mismatching functions to error messages
          /* A call to functionStart should be inserted at the beginning of each 
          function. functionStart is given the parameter names and values, and updates
          paramData with information on the types of the parameters. 
@@ -146,11 +147,12 @@ function createParamTraceContext() {
                     var prevType = this.paramData[fcnName][paramNames[i]];
                     if (prevType != currType) {
                         // Mismatch
-                        if (!_.has(this.mismatches, fcnName)) {
+                        /*if (!_.has(this.mismatches, fcnName)) {
                             this.mismatches[fcnName] = [];
-                        }
+                        } */
                         var message = "Mismatch: parameter " + currValue + " of type " + currType + " does not match previous parameter of type " + prevType + ".";
-                        this.mismatches[fcnName].push(message);
+			this.
+                        //this.mismatches[fcnName].push(message);
                     }
                 }
                 
