@@ -23,8 +23,8 @@ function getType (obj) {
 
 function main() {
     // var filename = "../../floitsch-downloads/optimizing-for-v8/trace-inlining2.js";
-    //var filename = "./fieldCheck.js";
-    var filename = "./foo.js";
+    var filename = "./fieldCheck.js";
+    //var filename = "./foo.js";
     content = fs.readFileSync(filename, "utf-8");
     createParamTraceContext();
     createFieldContext();
@@ -130,11 +130,11 @@ function instrumentFieldTypes(code) {
   //TODO check if it's a block statement?
   for(var i = 0; i < realBody.length; i++) {
       var line = realBody[i];
-      if(line.type != "ExpressionStatement" ||
-      line.expression.type != "AssignmentExpression" ||
-      line.expression.left.type != "MemberExpression") continue;
+      if(line.type != esprima.Syntax.ExpressionStatement ||
+      line.expression.type != esprima.Syntax.AssignmentExpression ||
+      line.expression.left.type != esprima.Syntax.MemberExpression) continue;
         var cur = line.expression.left;
-        while (cur.type === "MemberExpression") {
+        while (cur.type === esprima.Syntax.MemberExpression) {
           var objName = line.expression.left.object.name;
           var fieldName = line.expression.left.property.name;
           if(!(objName in mods)) {
