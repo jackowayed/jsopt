@@ -9,6 +9,18 @@ content = undefined;
 
 main();
 
+
+/* Pretty-print object as JSON. */
+function prettyPrint(obj) {
+    return JSON.stringify(obj, undefined, 2); // Use 2 spaces for indentation
+}
+
+/* See http://javascriptweblog.wordpress.com/2011/08/08/fixing-the-javascript-typeof-operator/ 
+*/
+function getType (obj) {
+   return ({}).toString.call(obj).match(/\s([a-z|A-Z]+)/)[1].toLowerCase();
+ }
+
 function main() {
     // var filename = "../../floitsch-downloads/optimizing-for-v8/trace-inlining2.js";
     //var filename = "./fieldCheck.js";
@@ -21,9 +33,9 @@ function main() {
     //console.log(newContent);
     try {
         eval(newContent_param);
-	eval(newContent_field);
+        eval(newContent_field);
         global.PARAMTRACE.printResults();
-	global.FIELDTRACE.printResults();
+        global.FIELDTRACE.printResults();
     } catch (error) {
         console.log("Error: evaluation of instrumented content failed.")
         console.log(error);
@@ -32,7 +44,7 @@ function main() {
     // tryCatch(filename)
 }
 
-/* ========= Code instrumentation ========*/
+/* ========= Code instrumentation: Parameter type change detection ========*/
 
 
 function instrumentParamTypes(code) {
@@ -51,77 +63,19 @@ function instrumentParamTypes(code) {
             signature += 'paramNames: ' + JSON.stringify(paramNames);  // the names of the params
          signature += ' });';
          return signature;
-     });
-    code = esmorph.modify(code, tracer);
-    code = '(function() {\n' + code + '\n}())';
-    return code
-}
-
-function instrumentFieldTypes(code) {					    
-    tracer = esmorph.Tracer.FunctionEntrance(function (fn) {
-	var mods = {}
-	var realBody = fn.body.body;
-	//TODO check if it's a block statement?
-	for(var i = 0; i < realBody.length; i++) {
-	    var line = realBody[i];
-	    if(line.type != "ExpressionStatement" ||
-	    line.expression.type != "AssignmentExpression" ||
-	    line.expression.left.type != "MemberExpression") continue;
-        var cur = line.expression.left;
-        while (cur.type === "MemberExpression") {
-	        var objName = line.expression.left.object.name;
-	        var fieldName = line.expression.left.property.name;
-	        if(!(objName in mods)) {
-		    mods[objName] = {};	
-	        }
-	        mods[objName][fieldName] = true;
-            cur = cur.object;
-        }
-	}
-	var modString = JSON.stringify(mods);
-	var varPartials = _.map(_.keys(mods), function(name) {
-            return "'" + name + "': " + name;
-        });
-	var varList = "{" + varPartials.join(",") + "}";
-        var signature = 'global.FIELDTRACE.functionStart({ ';
-	signature += 'varList: ' + varList + ',';
-	signature += 'modFields: ' + modString + ',';
-        signature += 'fcnName: "' + fn.name + '", ';
-	//signature += 'context: this,';
-        signature += ' });';
-        return signature;
     });
     code = esmorph.modify(code, tracer);
     code = '(function() {\n' + code + '\n}())';
     return code
 }
 
-function Logger(headerMessage) {
-    this.headerMessage = headerMessage;
-    this.messageData = {};
-    this.print = function() {
-	console.log(this.headerMessage);
-	_.each(this.messageData, function(value, key) {
-            console.log("In function: " + key);
-            _.each(value, function(message) {
-		console.log("\t" + message)
-            });
-	});
-    }
-    this.addMessage = function(fnName, message) {
-	if (!_.has(this.messageData, fnName)) {
-            this.messageData[fnName] = [];
-	}
-	this.messageData[fnName].push(message);
-    }
-}
 
 /* Creates the context global.PARAMTRACE for instrumenting parameters and
 detecting functions that are called with parameters of different types. */
 function createParamTraceContext() {
      global.PARAMTRACE = {
          paramData: {},  // Map functions to arrays of param types, empty if none.
-	 mismatches: new Logger("==Functions with type mismatches== "), 
+         mismatches: new Logger("==Functions with type mismatches== "), 
 
          /* A call to functionStart should be inserted at the beginning of each 
          function. functionStart is given the parameter names and values, and updates
@@ -153,7 +107,7 @@ function createParamTraceContext() {
                     if (prevType != currType) {
                         // Mismatch
                         var message = "Mismatch: parameter " + currValue + " of type " + currType + " does not match previous parameter of type " + prevType + ".";
-			this.mismatches.addMessage(fcnName, message);
+                        this.mismatches.addMessage(fcnName, message);
                     }
                 }
                 
@@ -162,37 +116,93 @@ function createParamTraceContext() {
          /* Should be called after the instrumented code has been executed. 
          Prints the results of the parameter type mismatch tracking.*/
          printResults: function() {
-	     this.mismatches.print();
+           this.mismatches.print();
          }
      };
  }
 
-function createFieldContext() {
-    global.FIELDTRACE = {
-	logger: new Logger("==Fields added to objects on the fly=="),
-	functionStart: function(modData) {
-   	    console.log(modData);
-	    var fields =  modData.modFields;
-	    for(var obj in fields) {
-		for(var field in fields[obj]) {
-		    if(!(field in modData.varList[obj])) {
-			var message = "Field " + field + " added to " + obj;
-			this.logger.addMessage(modData.fcnName, message);
-		    }
-		}
-	    }
-	},
-	printResults: function() {
-	    this.logger.print();
-	}
+/* ========= Code instrumentation: Adding/deleting fields of an object ========*/
+
+function instrumentFieldTypes(code) {             
+  tracer = esmorph.Tracer.FunctionEntrance(function (fn) {
+  var mods = {}
+  var realBody = fn.body.body;
+  //TODO check if it's a block statement?
+  for(var i = 0; i < realBody.length; i++) {
+      var line = realBody[i];
+      if(line.type != "ExpressionStatement" ||
+      line.expression.type != "AssignmentExpression" ||
+      line.expression.left.type != "MemberExpression") continue;
+        var cur = line.expression.left;
+        while (cur.type === "MemberExpression") {
+          var objName = line.expression.left.object.name;
+          var fieldName = line.expression.left.property.name;
+          if(!(objName in mods)) {
+            mods[objName] = {}; 
+          }
+          mods[objName][fieldName] = true;
+          cur = cur.object;
+        }
+  }
+  var modString = JSON.stringify(mods);
+  var varPartials = _.map(_.keys(mods), function(name) {
+    return "'" + name + "': " + name;
+  });
+  var varList = "{" + varPartials.join(",") + "}";
+  var signature = 'global.FIELDTRACE.functionStart({ ';
+    signature += 'varList: ' + varList + ',';
+    signature += 'modFields: ' + modString + ',';
+    signature += 'fcnName: "' + fn.name + '", ';
+    //signature += 'context: this,';
+    signature += ' });';
+    return signature;
+    });
+    code = esmorph.modify(code, tracer);
+    code = '(function() {\n' + code + '\n}())';
+    return code
+}
+
+function Logger(headerMessage) {
+    this.headerMessage = headerMessage;
+    this.messageData = {};
+    this.print = function() {
+      console.log(this.headerMessage);
+      _.each(this.messageData, function(value, key) {
+                console.log("In function: " + key);
+                _.each(value, function(message) {
+        console.log("\t" + message)
+                });
+      });
+    };
+    this.addMessage = function(fnName, message) {
+      if (!_.has(this.messageData, fnName)) {
+                this.messageData[fnName] = [];
+      }
+      this.messageData[fnName].push(message);
     };
 }
 
-/* See http://javascriptweblog.wordpress.com/2011/08/08/fixing-the-javascript-typeof-operator/ 
-*/
-function getType (obj) {
-   return ({}).toString.call(obj).match(/\s([a-z|A-Z]+)/)[1].toLowerCase();
- }
+
+function createFieldContext() {
+  global.FIELDTRACE = {
+    logger: new Logger("==Fields added to objects on the fly=="),
+    functionStart: function(modData) {
+      console.log(modData);
+      var fields =  modData.modFields;
+      for(var obj in fields) {
+        for(var field in fields[obj]) {
+          if(!(field in modData.varList[obj])) {
+            var message = "Field " + field + " added to " + obj;
+            this.logger.addMessage(modData.fcnName, message);
+          }
+        }
+      }
+    },
+    printResults: function() {
+        this.logger.print();
+    }
+  };
+}
 
  /* ========= Try-catch detection/analysis ========*/
  function tryCatch(filename) {
@@ -235,10 +245,6 @@ function processOutputLine(line) {
 }
 
 
-/* Pretty-print object as JSON. */
-function prettyPrint(obj) {
-    return JSON.stringify(obj, undefined, 2); // Use 2 spaces for indentation
-}
 
 /* Processes a try object and outputs optimization suggestions. */
 function isTry(obj, currFcn) {
