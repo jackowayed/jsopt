@@ -28,14 +28,17 @@ function main() {
     content = fs.readFileSync(filename, "utf-8");
     createParamTraceContext();
     createFieldContext();
-    newContent_param = instrumentParamTypes(content);  // Replace with your desired instrumentation
-    newContent_field = instrumentFieldTypes(content);
+    // newContent_param = instrumentParamTypes(content);  // Replace with your desired instrumentation
+    // newContent_field = instrumentFieldTypes(content);
+    newContentDeclarations = instrumentDeclarations(content);
+    // console.log(newContentDeclarations)
     //console.log(newContent);
     try {
-        eval(newContent_param);
-        eval(newContent_field);
-        global.PARAMTRACE.printResults();
-        global.FIELDTRACE.printResults();
+      eval(newContentDeclarations);
+        // eval(newContent_param);
+        // eval(newContent_field);
+        // global.PARAMTRACE.printResults();
+        // global.FIELDTRACE.printResults();
     } catch (error) {
         console.log("Error: evaluation of instrumented content failed.")
         console.log(error);
@@ -43,6 +46,19 @@ function main() {
     // console.log(newContent);
     // tryCatch(filename)
 }
+/* ========= Code instrumentation: Track variable declarations ========*/
+
+
+function instrumentDeclarations(code) {
+    tracer = esmorph.Tracer.VariableDeclaratorAfter(function (fn) {
+         var signature = 'console.log("names:" + '  + JSON.stringify(fn.names) + ');';
+         return signature;
+    });
+    code = esmorph.modify(code, tracer);
+    code = '(function() {\n' + code + '\n}())';
+    return code;
+}
+
 
 /* ========= Code instrumentation: Parameter type change detection ========*/
 

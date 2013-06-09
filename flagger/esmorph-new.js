@@ -191,14 +191,14 @@
                 range = functionList[i].node.range;
                 pos = functionList[i].node.body.range[0] + 1;
                 var params = functionList[i].node.params;
-		var body = functionList[i].node.body;
+		        var body = functionList[i].node.body;
                 if (typeof traceName === 'function') {
                     signature = traceName.call(null, {
                         name: name,
                         line: line,
                         range: range,
                         paramData: params,  // Added for flagger.js
-			body: body, // Added for flagger.js field mod check
+			            body: body, // Added for flagger.js field mod check
                     });
                 } else {
                     signature = traceName + '({ ';
@@ -216,7 +216,7 @@
 
             return fragments;
         };
-    }
+    } 
 
     function traceFunctionExit(traceName) {
 
@@ -290,6 +290,69 @@
         };
     }
 
+    // Find every variable declaration. Also store the array of variable names declared on this line.
+    function collectVariableDeclaration(code, tree) {
+        var declarationList = [];
+
+        traverse(tree, function (node, path) {
+            var name, parent;
+
+            if (node.type === esprima.Syntax.VariableDeclaration && node.kind === "var") {
+                var names = node.declarations.map(function(val) { return val.id.name});
+                declarationList.push({names: names, node: node });
+            }
+        });
+
+        return declarationList;
+    }
+
+    /* Added for fun -- Sophia 
+
+    Must be passed a function. 
+    Calls the given function (traceName) after each var declaration, passing in 
+    the parameter 'declarations' containing the Esprima declarations object for 
+    parsed code of type "VariableDeclaration". 'declarations' is an array containing
+    objects of type 'VariableDeclarator'. The array willf have length > 1 if there are
+    multiple declarations on a single line (ex, var a = 1, b = 2)
+    */
+    function traceVariableDeclaratorAfter(traceName) {
+
+        return function (code) {
+            var tree, i, fragments,
+                line, range, pos, signature;
+
+            tree = esprima.parse(code, { range: true, loc: true });
+            var declarationList = collectVariableDeclaration(code, tree);
+
+            // Populate the fragments to be inserted into the code.
+
+            fragments = [];
+            for (i = 0; i < declarationList.length; i += 1) {
+                line = declarationList[i].node.loc.start.line;
+                range = declarationList[i].node.range;
+                pos = declarationList[i].node.range[1];
+                var names = declarationList[i].names
+                var declarations = declarationList[i].node.declarations;
+                if (typeof traceName === 'function') {
+                    signature = traceName.call(null, {
+                        names: names,
+                        line: line,
+                        range: range,
+                        declarations: declarations,  
+                    });
+                } 
+                signature = '\n' + signature;
+                fragments.push({
+                    index: pos,
+                    text: signature
+                });
+            }
+
+            return fragments;
+        };
+    } 
+
+
     function modify(code, modifier) {
         var i, morphers, fragments;
 
@@ -316,7 +379,8 @@
 
     exports.Tracer = {
         FunctionEntrance: traceFunctionEntrance,
-        FunctionExit: traceFunctionExit
+        FunctionExit: traceFunctionExit,
+        VariableDeclaratorAfter: traceVariableDeclaratorAfter
     };
 
 }));
