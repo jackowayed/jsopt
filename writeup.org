@@ -1,0 +1,18 @@
+* Overview
+For our project, we created a tool for Javascript authors.  Since
+modern web applications make heavy ues of Javascript for basic
+functionality, modern web browsers contain very fancy Javascript
+engines designed to maximize performance. Engines JIT Javascript code
+to native code and also dynamically optimize the machine code.
+
+However, due to the loose and freewheeling nature of Javascript, many
+common Javascript programming paradigms create optimization barriers.
+For instance, in Google's V8 engine, Javascript objects are compiled
+to C++ classes to allow very quick access to object fields. This is
+much faster than using a hashtable to resolve field names to locations
+in memory.  Hoewver, whenever a Javascript author adds a new field to
+an existing object, V8 must create a new C++ class, as C++ classes
+cannot be changed like a hashtable can be.
+
+As another example, V8 attempts to inline function calls, but won't 
+inline if the target fuction is too large. However, V8 
