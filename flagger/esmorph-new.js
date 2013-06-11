@@ -362,7 +362,12 @@
     }
 
     var InstrumentableLine = {
+      BreakStatement: 'BreakStatement',
+      ContinueStatement: 'ContinueStatement',
+      EmptyStatement: 'EmptyStatement', 
       ExpressionStatement: 'ExpressionStatement',  
+      ReturnStatement: 'ReturnStatement',
+      ThrowStatement: 'ThrowStatement', 
       VariableDeclaration: 'VariableDeclaration'
     }
 
@@ -380,7 +385,6 @@
     the parameter 'node' containing the Esprima node type. 
     */
     function traceInstrumentableLine(traceName, whereEnum, genericType, optionalFilter) {
-        console.log(InstrumentableLine)
         if (!InstrumentableLine[genericType]) {
             console.log("Error: type " + genericType + " is not instrumentable.")
             return
@@ -439,18 +443,7 @@
         return insert(code, fragments);
     }
 
-    // var InstrumentableBlock = {
-    //   ForStatement: 'ForStatement',
-    //   ForInStatement: 'ForInStatement',
-    //   FunctionDeclaration: 'FunctionDeclaration', // function a() { }
-    //   FunctionExpression: 'FunctionExpression', // anonymous function. function() { … }
-    //   IfStatement: 'IfStatement', // if statement
-    //   WhileStatement: 'WhileStatement',
-    //   WithStatement: 'WithStatement', 
-    //   SwitchStatement: 'SwitchStatement', // switch statement
-    //   TryStatement: 'TryStatement'
 
-    // }
     //   DoWhileStatement: 'DoWhileStatement', 
     // Sync with package.json.
     exports.version = '0.0.0-dev';

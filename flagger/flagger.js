@@ -90,7 +90,7 @@ function instrumentDeclarations(code) {
       return node && node.kind === "var";
     }
     tracer = esmorph.Tracer.InstrumentableLine(instrumentFcn, esmorph.Where.BEFORE, esprima.Syntax.VariableDeclaration, filterFcn);
-    code = esmorph.modify(code, tracer);
+    code = esmorph.modify(code, [tracer]);
     console.log(code)
 
     code = '(function() {\n' + code + '\n}())';
