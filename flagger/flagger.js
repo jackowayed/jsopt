@@ -23,8 +23,12 @@ function getType (obj) {
 
 function main() {
     // var filename = "../../floitsch-downloads/optimizing-for-v8/trace-inlining2.js";
+
     //var filename = "./fieldCheck.js";
-    var filename = "./demo-varDeclarations.js";
+    // var filename = "./demo-varDeclarations.js";
+
+    var filename = "./fieldCheck.js";
+
     content = fs.readFileSync(filename, "utf-8");
     createParamTraceContext();
     createFieldContext();
@@ -152,43 +156,53 @@ function createParamTraceContext() {
 
 /* ========= Code instrumentation: Adding/deleting fields of an object ========*/
 
-function instrumentFieldTypes(code) {             
-  tracer = esmorph.Tracer.FunctionEntrance(function (fn) {
-  var mods = {}
-  var realBody = fn.body.body;
-  //TODO check if it's a block statement?
-  for(var i = 0; i < realBody.length; i++) {
-      var line = realBody[i];
-      if(line.type != "ExpressionStatement" ||
-      line.expression.type != "AssignmentExpression" ||
-      line.expression.left.type != "MemberExpression") continue;
-        var cur = line.expression.left;
-        while (cur.type === "MemberExpression") {
-          var objName = line.expression.left.object.name;
-          var fieldName = line.expression.left.property.name;
-          if(!(objName in mods)) {
-            mods[objName] = {}; 
-          }
-          mods[objName][fieldName] = true;
-          cur = cur.object;
+
+/* grab a recursive object access out of the syntax tree
+cur and add it to the object tree tree (oops bad naming) */
+function buildTree(tree, cur) {
+    if(cur.type === esprima.Syntax.MemberExpression) {
+        newTree = buildTree(tree, cur.object);
+    } else {
+        if(!(cur.name in tree)) {
+            tree[cur.name] = {};
         }
-  }
-  var modString = JSON.stringify(mods);
-  var varPartials = _.map(_.keys(mods), function(name) {
-    return "'" + name + "': " + name;
-  });
-  var varList = "{" + varPartials.join(",") + "}";
-  var signature = 'global.FIELDTRACE.functionStart({ ';
-    signature += 'varList: ' + varList + ',';
-    signature += 'modFields: ' + modString + ',';
-    signature += 'fcnName: "' + fn.name + '", ';
-    //signature += 'context: this,';
-    signature += ' });';
-    return signature;
+        return tree[cur.name];
+    }
+    if(!(cur.property.name in tree)) {
+        newTree[cur.property.name] = {};
+    }
+    return newTree[cur.property.name];
+}
+
+function instrumentFieldTypes(code) {             
+    tracer = esmorph.Tracer.FunctionEntrance(function (fn) {
+        var mods = {}
+        var realBody = fn.body.body;
+        //TODO check if it's a block statement?
+        for(var i = 0; i < realBody.length; i++) {
+            var line = realBody[i];
+            if(line.type != esprima.Syntax.ExpressionStatement ||
+               line.expression.type != esprima.Syntax.AssignmentExpression ||
+               line.expression.left.type != esprima.Syntax.MemberExpression) continue;
+            buildTree(mods, line.expression.left);
+        }
+        console.log(mods);
+        var modString = JSON.stringify(mods);
+        var varPartials = _.map(_.keys(mods), function(name) {
+            return "'" + name + "': " + name;
+        });
+        var varList = "{" + varPartials.join(",") + "}";
+        var signature = 'global.FIELDTRACE.functionStart({ ';
+        signature += 'varList: ' + varList + ',';
+        signature += 'modFields: ' + modString + ',';
+        signature += 'fcnName: "' + fn.name + '", ';
+        //signature += 'context: this,';
+        signature += ' });';
+        return signature;
     });
     code = esmorph.modify(code, tracer);
     code = '(function() {\n' + code + '\n}())';
-    return code
+    return code;
 }
 
 function Logger(headerMessage) {
@@ -211,26 +225,36 @@ function Logger(headerMessage) {
     };
 }
 
-
 function createFieldContext() {
-  global.FIELDTRACE = {
-    logger: new Logger("==Fields added to objects on the fly=="),
-    functionStart: function(modData) {
-      console.log(modData);
-      var fields =  modData.modFields;
-      for(var obj in fields) {
-        for(var field in fields[obj]) {
-          if(!(field in modData.varList[obj])) {
-            var message = "Field " + field + " added to " + obj;
-            this.logger.addMessage(modData.fcnName, message);
-          }
+    global.FIELDTRACE = {
+        logger: new Logger("==Fields added to objects on the fly=="),
+        functionStart: function(modData) {
+            console.log(modData);
+            var fields =  modData.modFields;
+            // Dig into objects
+            var recursiveFieldCheck = function(start, used, parent, logger) {
+                for(var field in used) {
+                    if(!(field in start)) {
+                        var message = "Field " + field + " added to " + parent;
+                        logger.addMessage(modData.fcnName, message);
+                    } else {
+                        recursiveFieldCheck(start[field], used[field], parent + '.' + field, logger);
+                    }
+                }
+            }
+            for(item in modData.modFields) {
+                // Only check if the object was in scope at the function start
+                if(item in modData.varList) {
+                    recursiveFieldCheck(modData.varList[item],
+                                        modData.modFields[item],
+                                        item, this.logger);
+                }
+            }
+        },
+        printResults: function() {
+            this.logger.print();
         }
-      }
-    },
-    printResults: function() {
-        this.logger.print();
-    }
-  };
+    };
 }
 
  /* ========= Try-catch detection/analysis ========*/
