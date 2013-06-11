@@ -354,7 +354,6 @@
         var lines = [];
         traverse(tree, function (node, path) {
             var name, parent;
-
             if (node.type === genericType && optionalFilter(node)) {
                 lines.push({node: node });
             }
@@ -367,6 +366,12 @@
       VariableDeclaration: 'VariableDeclaration'
     }
 
+    var WhereEnum = {
+        BEFORE: "before",
+        AFTER: "after"
+    }
+
+
     /* Added to extend instrumentation to be able to instrument generic lines. -- Sophia 
 
     Must be passed a function. 
@@ -374,7 +379,7 @@
     where that line's node passes the optional filter function. Passes in 
     the parameter 'node' containing the Esprima node type. 
     */
-    function traceInstrumentableLineAfter(traceName, genericType, optionalFilter) {
+    function traceInstrumentableLine(traceName, whereEnum, genericType, optionalFilter) {
         console.log(InstrumentableLine)
         if (!InstrumentableLine[genericType]) {
             console.log("Error: type " + genericType + " is not instrumentable.")
@@ -391,7 +396,6 @@
             for (i = 0; i < lines.length; i += 1) {
                 line = lines[i].node.loc.start.line;
                 range = lines[i].node.range;
-                pos = lines[i].node.range[1];
                 if (typeof traceName === 'function') {
                     signature = traceName.call(null, {
                         line: line,
@@ -399,7 +403,14 @@
                         node: lines[i].node
                     });
                 }
-                signature = '\n' + signature;
+                if (whereEnum === WhereEnum.AFTER) {
+                    pos = lines[i].node.range[1];
+                    signature = '\n' + signature;
+                } else {
+                    pos = lines[i].node.range[0];
+                    signature = signature + '\n';
+                }
+
                 fragments.push({
                     index: pos,
                     text: signature
@@ -407,9 +418,7 @@
             }
             return fragments;
         };
-    } 
-
-
+    }
 
     function modify(code, modifier) {
         var i, morphers, fragments;
@@ -430,21 +439,30 @@
         return insert(code, fragments);
     }
 
-    // InstrumentableBlock = {
+    // var InstrumentableBlock = {
+    //   ForStatement: 'ForStatement',
+    //   ForInStatement: 'ForInStatement',
+    //   FunctionDeclaration: 'FunctionDeclaration', // function a() { }
+    //   FunctionExpression: 'FunctionExpression', // anonymous function. function() { … }
+    //   IfStatement: 'IfStatement', // if statement
     //   WhileStatement: 'WhileStatement',
     //   WithStatement: 'WithStatement', 
+    //   SwitchStatement: 'SwitchStatement', // switch statement
     //   TryStatement: 'TryStatement'
+
     // }
+    //   DoWhileStatement: 'DoWhileStatement', 
     // Sync with package.json.
     exports.version = '0.0.0-dev';
 
     exports.modify = modify;
 
+    exports.Where = WhereEnum; 
     exports.Tracer = {
         FunctionEntrance: traceFunctionEntrance,
         FunctionExit: traceFunctionExit,
         VariableDeclaratorAfter: traceVariableDeclaratorAfter,  // Added Sophia
-        InstrumentableLineAfter: traceInstrumentableLineAfter  // Added Sophia
+        InstrumentableLine: traceInstrumentableLine // Added Sophia
     };
 
 }));
