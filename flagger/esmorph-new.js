@@ -320,12 +320,9 @@
         return function (code) {
             var tree, i, fragments,
                 line, range, pos, signature;
-
             tree = esprima.parse(code, { range: true, loc: true });
             var declarationList = collectVariableDeclaration(code, tree);
-
             // Populate the fragments to be inserted into the code.
-
             fragments = [];
             for (i = 0; i < declarationList.length; i += 1) {
                 line = declarationList[i].node.loc.start.line;
@@ -352,6 +349,67 @@
         };
     } 
 
+    // Find every variable declaration. Also store the array of variable names declared on this line.
+    function collectGenericLines(code, tree, genericType, optionalFilter) {
+        var lines = [];
+        traverse(tree, function (node, path) {
+            var name, parent;
+
+            if (node.type === genericType && optionalFilter(node)) {
+                lines.push({node: node });
+            }
+        });
+        return lines;
+    }
+
+    var InstrumentableLine = {
+      ExpressionStatement: 'ExpressionStatement',  
+      VariableDeclaration: 'VariableDeclaration'
+    }
+
+    /* Added to extend instrumentation to be able to instrument generic lines. -- Sophia 
+
+    Must be passed a function. 
+    Calls the given function (traceName) after each line of the generic syntax type
+    where that line's node passes the optional filter function. Passes in 
+    the parameter 'node' containing the Esprima node type. 
+    */
+    function traceInstrumentableLineAfter(traceName, genericType, optionalFilter) {
+        console.log(InstrumentableLine)
+        if (!InstrumentableLine[genericType]) {
+            console.log("Error: type " + genericType + " is not instrumentable.")
+            return
+        }
+        return function (code) {
+            var tree, i, fragments,
+                line, range, pos, signature;
+            tree = esprima.parse(code, { range: true, loc: true });
+            var lines = collectGenericLines(code, tree, genericType, optionalFilter);
+
+            // Populate the fragments to be inserted into the code.
+            fragments = [];
+            for (i = 0; i < lines.length; i += 1) {
+                line = lines[i].node.loc.start.line;
+                range = lines[i].node.range;
+                pos = lines[i].node.range[1];
+                if (typeof traceName === 'function') {
+                    signature = traceName.call(null, {
+                        line: line,
+                        range: range,
+                        node: lines[i].node
+                    });
+                }
+                signature = '\n' + signature;
+                fragments.push({
+                    index: pos,
+                    text: signature
+                });
+            }
+            return fragments;
+        };
+    } 
+
+
 
     function modify(code, modifier) {
         var i, morphers, fragments;
@@ -372,6 +430,11 @@
         return insert(code, fragments);
     }
 
+    // InstrumentableBlock = {
+    //   WhileStatement: 'WhileStatement',
+    //   WithStatement: 'WithStatement', 
+    //   TryStatement: 'TryStatement'
+    // }
     // Sync with package.json.
     exports.version = '0.0.0-dev';
 
@@ -380,7 +443,54 @@
     exports.Tracer = {
         FunctionEntrance: traceFunctionEntrance,
         FunctionExit: traceFunctionExit,
-        VariableDeclaratorAfter: traceVariableDeclaratorAfter
+        VariableDeclaratorAfter: traceVariableDeclaratorAfter,  // Added Sophia
+        InstrumentableLineAfter: traceInstrumentableLineAfter  // Added Sophia
     };
 
 }));
+
+
+
+/* notes on esprima.Syntax
+{ AssignmentExpression: 'AssignmentExpression',  // subpart of an ExpressionStatement
+  ArrayExpression: 'ArrayExpression',
+  BlockStatement: 'BlockStatement',
+  BinaryExpression: 'BinaryExpression',
+  BreakStatement: 'BreakStatement',
+  CallExpression: 'CallExpression',
+  CatchClause: 'CatchClause', // subpart of a TryStatement.
+  ConditionalExpression: 'ConditionalExpression',
+  ContinueStatement: 'ContinueStatement',
+  DoWhileStatement: 'DoWhileStatement',
+  DebuggerStatement: 'DebuggerStatement',
+  EmptyStatement: 'EmptyStatement',
+  ExpressionStatement: 'ExpressionStatement',  // looks pretty generic. b={} or b.foo = 3
+  ForStatement: 'ForStatement',
+  ForInStatement: 'ForInStatement',
+  FunctionDeclaration: 'FunctionDeclaration',
+  FunctionExpression: 'FunctionExpression',
+  Identifier: 'Identifier',
+  IfStatement: 'IfStatement',
+  Literal: 'Literal',
+  LabeledStatement: 'LabeledStatement',
+  LogicalExpression: 'LogicalExpression',
+  MemberExpression: 'MemberExpression',
+  NewExpression: 'NewExpression',
+  ObjectExpression: 'ObjectExpression',
+  Program: 'Program',
+  Property: 'Property',
+  ReturnStatement: 'ReturnStatement',
+  SequenceExpression: 'SequenceExpression',
+  SwitchStatement: 'SwitchStatement',
+  SwitchCase: 'SwitchCase',
+  ThisExpression: 'ThisExpression',
+  ThrowStatement: 'ThrowStatement',
+  TryStatement: 'TryStatement',  // try {code} catch(error) {code} generates it
+  UnaryExpression: 'UnaryExpression',
+  UpdateExpression: 'UpdateExpression',
+  VariableDeclaration: 'VariableDeclaration',  // var a = 30 generates it.
+  VariableDeclarator: 'VariableDeclarator', // subpart of a variable declaration.
+  WhileStatement: 'WhileStatement',  // while(test) generates it.
+  WithStatement: 'WithStatement'    // with(object) {some code} generates it. 
+  }
+*/

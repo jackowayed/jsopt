@@ -24,7 +24,7 @@ function getType (obj) {
 function main() {
     // var filename = "../../floitsch-downloads/optimizing-for-v8/trace-inlining2.js";
     //var filename = "./fieldCheck.js";
-    var filename = "./foo.js";
+    var filename = "./demo-varDeclarations.js";
     content = fs.readFileSync(filename, "utf-8");
     createParamTraceContext();
     createFieldContext();
@@ -50,11 +50,24 @@ function main() {
 
 
 function instrumentDeclarations(code) {
-    tracer = esmorph.Tracer.VariableDeclaratorAfter(function (fn) {
-         var signature = 'console.log("names:" + '  + JSON.stringify(fn.names) + ');';
+    /* Using non-generic instrumentation */
+    // tracer = esmorph.Tracer.VariableDeclaratorAfter(function (fn) {
+    //      var signature = 'console.log("names:" + '  + JSON.stringify(fn.names) + ');';
+    //      return signature;
+    // });
+    /* Using generic instrumentation */
+    instrumentFcn = function (fn) {
+         var names = fn.node.declarations.map(function(val) { return val.id.name});
+         var signature = 'console.log("names:" + '  + JSON.stringify(names) + ');';
          return signature;
-    });
+    }
+    filterFcn = function(node) {
+      return node && node.kind === "var";
+    }
+    tracer = esmorph.Tracer.InstrumentableLineAfter(instrumentFcn, esprima.Syntax.VariableDeclaration, filterFcn);
     code = esmorph.modify(code, tracer);
+    console.log(code)
+
     code = '(function() {\n' + code + '\n}())';
     return code;
 }
@@ -223,7 +236,7 @@ function createFieldContext() {
  /* ========= Try-catch detection/analysis ========*/
  function tryCatch(filename) {
     // On other systems might need to change to ./d8
-     var tree = esprima.parse(content, { tolerant: true, loc: true, range: true });
+     var tree = esprima.parse(content, { tolerant: true, loc: true, range: true, comment: true });
      exec("d8 --trace-inlining " + filename, function(error, stdout, stderr) {
          lines = stdout.split("\n");
          /* runData.inline is a map from function name to an object containing the 
