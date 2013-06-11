@@ -1,3 +1,15 @@
+/*Cheese = function() {
+    this.a = 5;
+    this.b = 7;
+}
+
+function makeCheddar() {
+    cheddar = new Cheese();
+}
+
+makeCheddar();
+*/
+
 function foo(hasField, doesntHaveField) {
     hasField.moo = {};
     doesntHaveField.moo = 4;

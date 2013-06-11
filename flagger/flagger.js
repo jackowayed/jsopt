@@ -10,7 +10,8 @@ content = undefined;
 main();
 
 function main() {
-  mainVarDeclarations();
+  //mainVarDeclarations();
+    mainFields();
 }
 
 
