@@ -9,6 +9,10 @@ content = undefined;
 
 main();
 
+function main() {
+  mainVarDeclarations();
+}
+
 
 /* Pretty-print object as JSON. */
 function prettyPrint(obj) {
@@ -21,40 +25,74 @@ function getType (obj) {
    return ({}).toString.call(obj).match(/\s([a-z|A-Z]+)/)[1].toLowerCase();
  }
 
-function main() {
-    // var filename = "../../floitsch-downloads/optimizing-for-v8/trace-inlining2.js";
-    var filename = "./fieldCheck.js";
-    //var filename = "./foo.js";
+/* ==== Test cases for running individual programs */
+function mainVarDeclarations() {
+    var filename = "./demo-varDeclarations.js";
     content = fs.readFileSync(filename, "utf-8");
-    createParamTraceContext();
-    createFieldContext();
-    // newContent_param = instrumentParamTypes(content);  // Replace with your desired instrumentation
-    // newContent_field = instrumentFieldTypes(content);
     newContentDeclarations = instrumentDeclarations(content);
-    // console.log(newContentDeclarations)
-    //console.log(newContent);
     try {
       eval(newContentDeclarations);
-        // eval(newContent_param);
-        // eval(newContent_field);
-        // global.PARAMTRACE.printResults();
-        // global.FIELDTRACE.printResults();
     } catch (error) {
         console.log("Error: evaluation of instrumented content failed.")
         console.log(error);
     }
-    // console.log(newContent);
-    // tryCatch(filename)
 }
+
+function mainFields() {
+    var filename = "./fieldCheck.js";
+    content = fs.readFileSync(filename, "utf-8");
+    createFieldContext();
+    newContent_field = instrumentFieldTypes(content);
+    try {
+      eval(newContent_field);
+      global.FIELDTRACE.printResults();
+    } catch (error) {
+        console.log("Error: evaluation of instrumented content failed.")
+        console.log(error);
+    }
+}
+
+function mainParamCheck() {
+    var filename = "./demo-paramTypes.js";
+    content = fs.readFileSync(filename, "utf-8");
+    createParamTraceContext();
+    newContent_param = instrumentParamTypes(content);
+    try {
+      eval(newContent_param);
+      global.PARAMTRACE.printResults();
+    } catch (error) {
+        console.log("Error: evaluation of instrumented content failed.")
+        console.log(error);
+    }
+}
+
+/* TODO this seems to be not working as expected. */
+function mainTryCatch() {
+  tryCatch("../../floitsch-downloads/optimizing-for-v8/trace-inlining2.js")
+}
+
 /* ========= Code instrumentation: Track variable declarations ========*/
 
 
 function instrumentDeclarations(code) {
-    tracer = esmorph.Tracer.VariableDeclaratorAfter(function (fn) {
-         var signature = 'console.log("names:" + '  + JSON.stringify(fn.names) + ');';
+    /* Using non-generic instrumentation */
+    // tracer = esmorph.Tracer.VariableDeclaratorAfter(function (fn) {
+    //      var signature = 'console.log("names:" + '  + JSON.stringify(fn.names) + ');';
+    //      return signature;
+    // });
+    /* Using generic instrumentation */
+    instrumentFcn = function (fn) {
+         var names = fn.node.declarations.map(function(val) { return val.id.name});
+         var signature = 'console.log("names:" + '  + JSON.stringify(names) + ');';
          return signature;
-    });
+    }
+    filterFcn = function(node) {
+      return node && node.kind === "var";
+    }
+    tracer = esmorph.Tracer.InstrumentableLineAfter(instrumentFcn, esprima.Syntax.VariableDeclaration, filterFcn);
     code = esmorph.modify(code, tracer);
+    console.log(code)
+
     code = '(function() {\n' + code + '\n}())';
     return code;
 }
@@ -243,8 +281,11 @@ function createFieldContext() {
  /* ========= Try-catch detection/analysis ========*/
  function tryCatch(filename) {
     // On other systems might need to change to ./d8
-     var tree = esprima.parse(content, { tolerant: true, loc: true, range: true });
-     exec("d8 --trace-inlining " + filename, function(error, stdout, stderr) {
+     var tree = esprima.parse(content, { tolerant: true, loc: true, range: true, comment: true });
+     exec("~/v8/out/native/d8 --trace-inlining " + filename, function(error, stdout, stderr) {
+         if (error) {
+          console.log(error);
+         }
          lines = stdout.split("\n");
          /* runData.inline is a map from function name to an object containing the 
           property calledFrom, which is a list of all the functions it has been 
@@ -284,7 +325,7 @@ function processOutputLine(line) {
 
 /* Processes a try object and outputs optimization suggestions. */
 function isTry(obj, currFcn) {
-    if (obj && obj.type =="TryStatement") {
+    if (obj && obj.type === "TryStatement") {
         console.log("Offending code: starting at Line " + obj.loc.start.line + " in function " + currFcn);
         if (runData.inline[currFcn]) {
             console.log("Try/Catch likely prevented this function from being inlined by V8.");
@@ -298,15 +339,6 @@ function findTry(ast) {
     traverse(ast, isTry, undefined);
 }
 
-
-/* Big comments in the middle of functions prevent the functions from being inlined */
-function isBigComment(obj, currFcn) {
-    // TODO
-}
-
-function findBigComment(ast) {
-    traverse(ast, isBigComment, undefined);
-}
 
 // from https://github.com/ariya/esprima/blob/master/examples/findbooleantrap.js
 // Executes visitor on the object and its children (recursively).
