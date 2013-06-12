@@ -1,5 +1,7 @@
 main (0);
 main (1);
+main(1);
+main(1);
 
 function main (x) {
     if (x === 1) {

@@ -11,9 +11,9 @@ main();
 
 function main() {
   //mainVarDeclarations();
-    mainFields();
-    mainCatches();
-  mainReturnTypes();
+    // mainFields();
+    // mainCatches();
+    mainReturnTypes();
 }
 
 
@@ -56,9 +56,11 @@ function mainCatches() {
 function mainReturnTypes() {
     var filename = "./demo-return-types.js";
     content = fs.readFileSync(filename, "utf-8");
+    createReturnContext()
     newContentDeclarations = instrumentReturns(content);
     try {
       eval(newContentDeclarations);
+      global.RETURNTRACE.printResults();
     } catch (error) {
         console.log("Error: evaluation of instrumented content failed.")
         console.log(error);
@@ -248,12 +250,25 @@ function buildTree(tree, cur) {
 function instrumentReturns(code) {             
     instrumentFcn = function (fn) {
          // var names = fn.node.declarations.map(function(val) { return val.id.name});
-         var signature = 'console.log("return coming");';
+        // var paramNames = _.pluck(fn.paramData, "name")
+        // /* Construct a mapping from the parameter name to the parameter value 
+        //     (which is accessed with the raw name inserted into the function call). */
+        // var paramPartials = _.map(paramNames, function(name) {
+        //     return "'" + name + "': " + name;
+        // });
+        // var paramList = "{" + paramPartials.join(",") + "}"
+
+         var signature = 'global.RETURNTRACE.beforeReturn(';
+            // signature += 'paramValues: ' + paramList + ', ';  // the context-specific param values
+            // signature += 'fcnName: "' + fn.name + '", ';  // the function name
+            signature += JSON.stringify(fn.node);  // the names of the params
+         signature += ' );';
          return signature;
     }
     filterFcn = function(node) {
       return true;
     }
+
     tracer = esmorph.Tracer.InstrumentableLine(instrumentFcn, esmorph.Where.BEFORE, 
       esprima.Syntax.ReturnStatement, filterFcn);
     code = esmorph.modify(code, [tracer]);
@@ -262,6 +277,30 @@ function instrumentReturns(code) {
     code = '(function() {\n' + code + '\n}())';
     return code;
 }
+
+
+function createReturnContext() {
+    global.RETURNTRACE = {
+        logger: new Logger("== Return statement data =="),
+        linesHit: {},  // Map functions to arrays of param types, empty if none.
+        beforeReturn: function(node) {
+          prettyPrint(node)
+          var lineNum = node.loc.start.line;
+          if (!_.has(this.linesHit, lineNum) ) {
+              /* Initialize the mapping */
+              this.linesHit[lineNum] = {count: 0};
+          } 
+          this.linesHit[lineNum].count += 1;
+        },
+        printResults: function() {
+            this.logger.print();
+            _.each(this.linesHit, function(value, key) {
+              console.log("Return on line " + key + " was hit " + value.count + " times.");
+            });
+        }
+    };
+}
+
 
 
 function instrumentFieldTypes(code) {
