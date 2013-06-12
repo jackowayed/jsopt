@@ -50,6 +50,19 @@ function mainCatches() {
     }
 }
 
+function mainReturnTypes() {
+    var filename = "./demo-return-types.js";
+    content = fs.readFileSync(filename, "utf-8");
+    newContentDeclarations = instrumentReturns(content);
+    try {
+      eval(newContentDeclarations);
+      global.RETURNTRACE.printResults();
+    } catch (error) {
+        console.log("Error: evaluation of instrumented content failed.")
+        console.log(error);
+    }
+}
+
 function mainFields() {
     var filename = "./fieldCheck.js";
     content = fs.readFileSync(filename, "utf-8");
@@ -227,6 +240,55 @@ function buildTree(tree, cur) {
     }
     return newTree[cur.property.name];
 }
+
+
+function instrumentReturns(code) {             
+    tracer = esmorph.Tracer.InstrumentableLine(function (fn) {
+        var returnTypes = {};
+        var realBody = fn.body.body; //assume block statement? 
+        for(var i = 0; i < realBody.length; i++) {
+            var line = realBody[i];
+            if(line.type != esprima.Syntax.ReturnStatement) continue; 
+            // get fxn name
+            var name = fn;
+            // get fxn return type
+            var type = line.argument.type; // TODO NOT DYNAMIC
+            
+            // check if fxnName already in hashtable
+            //      - if true: check if return type matches stored type
+            //              - if true, continue
+            //              - if false, ERROR
+            //      - if false, insert
+            if(!(name in returnTypes)) { // function not yet recorded
+                returnTypes[name] = type;
+            }
+            else { // function has been recorded before
+                if (returnTypes[name] != type) { 
+                    // error? 
+                }
+                else {} // function matches previous return type
+            }
+        }
+        console.log(mods);
+        //var modString = JSON.stringify(mods);
+        //var varPartials = _.map(_.keys(mods), function(name) {
+        //    return "'" + name + "': " + name;
+        //});
+        //var varList = "{" + varPartials.join(",") + "}";
+        //var signature = 'global.RETURNTRACE.functionStart({ ';
+        ////signature += 'varList: ' + varList + ',';
+        ////signature += 'modFields: ' + modString + ',';
+        ////signature += 'fcnName: "' + fn.name + '", ';
+        ////signature += 'context: this,';
+        //signature += ' });';
+        //return signature;
+    });
+    code = esmorph.modify(code, tracer);
+    code = '(function() {\n' + code + '\n}())';
+    return code;
+}
+
+
 
 function instrumentFieldTypes(code) {             
     tracer = esmorph.Tracer.FunctionEntrance(function (fn) {
