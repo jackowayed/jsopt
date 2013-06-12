@@ -196,18 +196,11 @@ function buildTree(tree, cur) {
     return newTree[cur.property.name];
 }
 
-function instrumentFieldTypes(code) {             
-    tracer = esmorph.Tracer.FunctionEntrance(function (fn) {
-        var mods = {}
-        var realBody = fn.body.body;
-        //TODO check if it's a block statement?
-        for(var i = 0; i < realBody.length; i++) {
-            var line = realBody[i];
-            if(line.type != esprima.Syntax.ExpressionStatement ||
-               line.expression.type != esprima.Syntax.AssignmentExpression ||
-               line.expression.left.type != esprima.Syntax.MemberExpression) continue;
-            buildTree(mods, line.expression.left);
-        }
+function instrumentFieldTypes(code) {
+    var fieldTraceFn = function (fn) {
+        var mods = {};
+        //console.log(fn);
+        buildTree(mods, fn.node.expression.left);
         console.log(mods);
         var modString = JSON.stringify(mods);
         var varPartials = _.map(_.keys(mods), function(name) {
@@ -221,7 +214,14 @@ function instrumentFieldTypes(code) {
         //signature += 'context: this,';
         signature += ' });';
         return signature;
-    });
+    };
+    var fieldFilter = function(node) {
+        return (node.type == esprima.Syntax.ExpressionStatement &&
+           node.expression.type == esprima.Syntax.AssignmentExpression &&
+            node.expression.left.type == esprima.Syntax.MemberExpression);
+
+    };
+    tracer = esmorph.Tracer.InstrumentableLine(fieldTraceFn, esmorph.Where.BEFORE, esprima.Syntax.ExpressionStatement, fieldFilter);
     code = esmorph.modify(code, tracer);
     code = '(function() {\n' + code + '\n}())';
     return code;
