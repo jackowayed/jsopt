@@ -105,3 +105,14 @@ thus present an easy way to extract more performance with little
 source modification.
 ** Understanding paths through functions
 Esmorph includes a demo that counts how many times each function is called. However, there is no way to count which path through the function is taken, due to the shortcomings of Esmorph discussed above. With our extensions, a similar amount of code can give more understanding. As an example, we have implemented a tool that instruments each return statement to count how many times each return is taken.
+
+* Citations
+Thomas M. Conte, Burzin A. Patel, Kishore N. Menezes, and J. Stan Cox. Hardware-Based Proﬁling: An Effective Technique
+for Proﬁle-Driven Optimization. International Journal of
+Parallel Processing, 24(2):187–206, 1996.
+
+Florian Lotisch. Optimizing for V8 - Introduction. http://floitsch.blogspot.com/2012/03/optimizing-for-v8-introduction.html
+
+Gregor Richards, Sylvain Lebresne, Brian Burg, and Jan Vitek. 2010. An analysis of the dynamic behavior of JavaScript programs. SIGPLAN Not. 45, 6 (June 2010), 1-12. DOI=10.1145/1809028.1806598 http://doi.acm.org/10.1145/1809028.1806598 
+
+Chris Wilson. Performance Tips for JavaScript in V8. http://www.html5rocks.com/en/tutorials/speed/v8/
