@@ -183,8 +183,10 @@ function createParamTraceContext() {
 cur and add it to the object tree tree (oops bad naming) */
 function buildTree(tree, cur) {
     if(cur.type === esprima.Syntax.MemberExpression) {
-        newTree = buildTree(tree, cur.object);
+        var newTree = buildTree(tree, cur.object);
+        if(newTree == null) return null;
     } else {
+        if(cur.type == esprima.Syntax.ThisExpression) return null;
         if(!(cur.name in tree)) {
             tree[cur.name] = {};
         }
@@ -201,16 +203,17 @@ function instrumentFieldTypes(code) {
         var mods = {};
         //console.log(fn);
         buildTree(mods, fn.node.expression.left);
-        console.log(mods);
+        //console.log(mods);
         var modString = JSON.stringify(mods);
         var varPartials = _.map(_.keys(mods), function(name) {
             return "'" + name + "': " + name;
         });
         var varList = "{" + varPartials.join(",") + "}";
+        var name = function () {if(name in fn) return name; return "global"; }();
         var signature = 'global.FIELDTRACE.functionStart({ ';
         signature += 'varList: ' + varList + ',';
         signature += 'modFields: ' + modString + ',';
-        signature += 'fcnName: "' + fn.name + '", ';
+        signature += 'fcnName: "' + name + '", ';
         //signature += 'context: this,';
         signature += ' });';
         return signature;
@@ -251,7 +254,7 @@ function createFieldContext() {
     global.FIELDTRACE = {
         logger: new Logger("==Fields added to objects on the fly=="),
         functionStart: function(modData) {
-            console.log(modData);
+            //console.log(modData);
             var fields =  modData.modFields;
             // Dig into objects
             var recursiveFieldCheck = function(start, used, parent, logger) {

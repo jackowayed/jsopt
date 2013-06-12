@@ -1,14 +1,12 @@
-/*Cheese = function() {
+Cheese = function() {
     this.a = 5;
     this.b = 7;
 }
 
-function makeCheddar() {
-    cheddar = new Cheese();
-}
+cheddar = new Cheese();
+cheddar.a = 7;
+cheddar.c = 5;
 
-makeCheddar();
-*/
 
 function foo(hasField, doesntHaveField) {
     hasField.moo = {};
