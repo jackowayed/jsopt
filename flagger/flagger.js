@@ -264,7 +264,6 @@ function instrumentReturns(code) {
 }
 
 
-<<<<<<< HEAD
 function instrumentFieldTypes(code) {
     var fieldTraceFn = function (fn) {
         var mods = {};
