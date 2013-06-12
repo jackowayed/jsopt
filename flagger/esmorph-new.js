@@ -349,26 +349,53 @@
         };
     } 
 
-    // Find every variable declaration. Also store the array of variable names declared on this line.
-    function collectGenericLines(code, tree, genericType, optionalFilter) {
-        var lines = [];
+    /* Find every object of the genericType and return it. -- Sophia
+       Each object must also pass the optional filter function  */
+    function collectGenericObjects(code, tree, genericType, optionalFilter) {
+        var objs = [];
+        if (!optionalFilter) {
+            optionalFilter = function(node) {
+                return true;
+            }
+        }
         traverse(tree, function (node, path) {
             var name, parent;
             if (node.type === genericType && optionalFilter(node)) {
-                lines.push({node: node });
+                objs.push({node: node });
             }
         });
-        return lines;
+        return objs;
     }
 
     var InstrumentableLine = {
+      BreakStatement: 'BreakStatement',
+      ContinueStatement: 'ContinueStatement',
+      EmptyStatement: 'EmptyStatement', 
       ExpressionStatement: 'ExpressionStatement',  
+      ReturnStatement: 'ReturnStatement',
+      ThrowStatement: 'ThrowStatement', 
       VariableDeclaration: 'VariableDeclaration'
     }
 
+    var InstrumentableBlock = {
+      CatchClause: 'CatchClause', 
+      ForStatement: 'ForStatement',
+      ForInStatement: 'ForInStatement',
+      FunctionDeclaration: 'FunctionDeclaration', // function a() { }
+      FunctionExpression: 'FunctionExpression', // anonymous function. function() { … }
+      IfStatement: 'IfStatement', // if statement
+      SwitchStatement: 'SwitchStatement', // switch statement
+      TryStatement: 'TryStatement',
+      WhileStatement: 'WhileStatement',
+      WithStatement: 'WithStatement'
+    }
+
+
     var WhereEnum = {
         BEFORE: "before",
-        AFTER: "after"
+        AFTER: "after", 
+        START: "start", 
+        END: "end", 
     }
 
 
@@ -380,16 +407,15 @@
     the parameter 'node' containing the Esprima node type. 
     */
     function traceInstrumentableLine(traceName, whereEnum, genericType, optionalFilter) {
-        console.log(InstrumentableLine)
         if (!InstrumentableLine[genericType]) {
-            console.log("Error: type " + genericType + " is not instrumentable.")
+            console.log("Error: type " + genericType + " is not an instrumentable line.")
             return
         }
         return function (code) {
             var tree, i, fragments,
                 line, range, pos, signature;
             tree = esprima.parse(code, { range: true, loc: true });
-            var lines = collectGenericLines(code, tree, genericType, optionalFilter);
+            var lines = collectGenericObjects(code, tree, genericType, optionalFilter);
 
             // Populate the fragments to be inserted into the code.
             fragments = [];
@@ -406,9 +432,12 @@
                 if (whereEnum === WhereEnum.AFTER) {
                     pos = lines[i].node.range[1];
                     signature = '\n' + signature;
-                } else {
+                } else if (whereEnum == WhereEnum.BEFORE) {
                     pos = lines[i].node.range[0];
                     signature = signature + '\n';
+                } else {
+                    console.log("ERROR: illegal enum type " + whereEnum + ", must be either before or after." )
+                    return
                 }
 
                 fragments.push({
@@ -419,6 +448,65 @@
             return fragments;
         };
     }
+
+    /* Added to extend instrumentation to be able to instrument generic blocks. -- Sophia 
+
+    Must be passed a function. 
+    Calls the given function (traceName) after each line of the generic syntax type
+    where that line's node passes the optional filter function. Passes in 
+    the parameter 'node' containing the Esprima node type. 
+    */
+    function traceInstrumentableBlock(traceName, whereEnum, genericType, optionalFilter) {
+        if (!InstrumentableBlock[genericType]) {
+            console.log("Error: type " + genericType + " is not an instrumentable block.")
+            return
+        }
+        return function (code) {
+            var tree, i, fragments,
+                line, range, pos, signature;
+            tree = esprima.parse(code, { range: true, loc: true });
+            var blocks = collectGenericObjects(code, tree, genericType, optionalFilter);
+
+            // Populate the fragments to be inserted into the code.
+            fragments = [];
+            for (i = 0; i < blocks.length; i += 1) {
+                line = blocks[i].node.loc.start.line;
+                range = blocks[i].node.range;
+                var body = blocks[i].node.body;
+                if (typeof traceName === 'function') {
+                    signature = traceName.call(null, {
+                        line: line,
+                        range: range,
+                        node: blocks[i].node
+                    });
+                }
+                if (whereEnum === WhereEnum.START) {
+                    pos = blocks[i].node.body.range[0] + 1;
+                    signature = '\n' + signature;
+                } else if (whereEnum === WhereEnum.END) {
+                    pos = blocks[i].node.body.range[1] - 1;
+                    console.log(blocks[i].node.body.range)
+                    signature =  signature + '\n';
+                } else if (whereEnum === WhereEnum.AFTER) {
+                    pos = blocks[i].node.range[1];
+                    signature = '\n' + signature;
+                } else if (whereEnum === WhereEnum.BEFORE) {
+                    pos = blocks[i].node.range[0];
+                    signature = signature + '\n';
+                } else {
+                    console.log("ERROR: illegal enum type " + whereEnum);
+                    return
+                }
+
+                fragments.push({
+                    index: pos,
+                    text: signature
+                });
+            }
+            return fragments;
+        };
+    }
+
 
     function modify(code, modifier) {
         var i, morphers, fragments;
@@ -439,18 +527,7 @@
         return insert(code, fragments);
     }
 
-    // var InstrumentableBlock = {
-    //   ForStatement: 'ForStatement',
-    //   ForInStatement: 'ForInStatement',
-    //   FunctionDeclaration: 'FunctionDeclaration', // function a() { }
-    //   FunctionExpression: 'FunctionExpression', // anonymous function. function() { … }
-    //   IfStatement: 'IfStatement', // if statement
-    //   WhileStatement: 'WhileStatement',
-    //   WithStatement: 'WithStatement', 
-    //   SwitchStatement: 'SwitchStatement', // switch statement
-    //   TryStatement: 'TryStatement'
 
-    // }
     //   DoWhileStatement: 'DoWhileStatement', 
     // Sync with package.json.
     exports.version = '0.0.0-dev';
@@ -462,7 +539,8 @@
         FunctionEntrance: traceFunctionEntrance,
         FunctionExit: traceFunctionExit,
         VariableDeclaratorAfter: traceVariableDeclaratorAfter,  // Added Sophia
-        InstrumentableLine: traceInstrumentableLine // Added Sophia
+        InstrumentableLine: traceInstrumentableLine, // Added Sophia
+        InstrumentableBlock: traceInstrumentableBlock // Added Sophia
     };
 
 }));

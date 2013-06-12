@@ -6,13 +6,50 @@ engines designed to maximize performance. Engines JIT Javascript code
 to native code and also dynamically optimize the machine code.
 
 However, due to the loose and freewheeling nature of Javascript, many
-common Javascript programming paradigms create optimization barriers.
-For instance, in Google's V8 engine, Javascript objects are compiled
-to C++ classes to allow very quick access to object fields. This is
-much faster than using a hashtable to resolve field names to locations
-in memory.  Hoewver, whenever a Javascript author adds a new field to
-an existing object, V8 must create a new C++ class, as C++ classes
-cannot be changed like a hashtable can be.
+common Javascript programming paradigms create optimization barriers,
+though often these barriers can be overcome. For instance, in Google's
+V8 engine, Javascript objects are compiled to C++ classes to allow
+very quick access to object fields. This is much faster than using a
+hashtable to resolve field names to locations in memory.  Hoewver,
+whenever a Javascript author adds a new field to an existing object,
+V8 must create a new C++ class, as C++ classes cannot be changed like
+a hashtable can be.
 
-As another example, V8 attempts to inline function calls, but won't 
-inline if the target fuction is too large. However, V8 
+As another example, V8 attempts to inline function calls, but won't
+inline if the target fuction's text is too large. However, when
+calculating the size of the target function, V8 /includes comments/!
+A frequently invoked Javascript function with a large comment
+therefore may not be inlined while the same function without the
+comment may be.
+
+As a last example, V8 doesn't made no attempt to optimize statements
+contained within try-catch blocks; such code is simply executed
+slowly. However, if the try block contains some compute-heavy code
+that can be easily moved to a separate function, refactoring the
+compute-heavy code into a separate function allows V8 to optimize the
+subsidiary function, essentially eliminating the try-catch penalty.
+
+To this end, our tool seeks to help Javascript authors identify
+optimizations barriers in their programs. Such barriers can usually be
+easily rewritten to a semantically identical but optimizable form. To
+accomplish this, our tool also provides a Javascript instrumentation
+framework that we used to find various optimization barriers and
+report them to the user.
+
+TODO FINISH
+
+* Tools
+We built our tool around the Esprima parsing library, a JS parser
+writen in JS. We also initially used an Esprima derivative product
+called Esmorph, a JS mutation tool usable as an instrumentation
+framework. However, Esmorph only allows instrumentation code to be
+inserted at function prologues and epilogues; we desired a more
+general facility.
+
+* Specific detected code patterns
+** Try / catch
+As of October 2012, V8 didn't even try -- ha -- to optimize try/catch
+statements. However, as mentioned before, compute-heavy code
+refactored into a separate function called from within the try/catch
+can still be optimized.
+
