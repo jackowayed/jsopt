@@ -1,4 +1,5 @@
 * Motivation
+** V8 Optimization
 For our project, we created a tool for Javascript authors.  Since
 modern web applications make heavy ues of Javascript for basic
 functionality, modern web browsers contain very fancy Javascript
@@ -33,20 +34,49 @@ To this end, our tool seeks to help Javascript authors identify
 optimizations barriers in their programs. Such barriers can usually be
 easily rewritten to a semantically identical but optimizable form. 
 
+** Instrumentation
+Most instrumentation efforts have focused on instrumenting at the
+level of machine code or static source code. There are good reasons
+for shying away form instrumenting dynamic code; constructs like eval
+and on-the-fly anonymous function generation pose challenges to
+instrumenting all code.
+
+However, there are many use-cases where instrumentation of dynamic
+code is desirable. We discovered some of them by working on V8
+optimization issues. To determine if an object has properties added
+after being initialized, it is desirable to be able to instrument
+every line where the object is mutated to see if the list of
+properties the object possesses change as a result of the line
+running.
+
+Furthermore, we believe that this is broadly-useful functionality that
+can help with debugging, monitoring of large-scale deployed websites,
+and more.
+
 * Tools
 We built an optimization-barrier diagnostic tool around the Esprima
-parsing library, a JS parser writen in JS. We also initially used an
-Esprima derivative product called Esmorph, a JS mutation tool usable
-as an instrumentation framework.
+parsing library, a JS parser writen in JS.
+
+We also initially used an Esprima derivative product called Esmorph, a
+JS mutation tool usable as an instrumentation framework. However,
+Esmorph is a fledgling project of under 100 LOC, so we unsurprisingly
+found it to be extremely limiting. As a result, we extended it
+significantly.
 
 * Contribution
 To implement our optimization-barrier diagnostic, we provide a
 Javascript instrumentation framework. We took the existing Esmorph
 Javascript instrumentation tool and extended its API to provide more
 general functionality. Esmorph originally could only instrument by
-inserting code at function entrances and exits; we extended the API to
-be able to insert instrumenting code before variable declarations,
-instrumentable lines, and instrumentable blocks.
+inserting code at function beginnings and ends. Note that this is
+*ends* of functions, not all exits. Thus, the functionality of
+instrumenting ends is only really useful for instrumenting void
+functions with no side exits, an extreme limitation.
+
+We extended the API to be able to insert instrumenting code before and
+after lines. We allow targeted instrumentation as well; for example,
+instrumenting every return statement, or instrumenting every if
+statement (before it, after it, or in its consequent blocks).
 
 * Specifics
 ** Try / catch
