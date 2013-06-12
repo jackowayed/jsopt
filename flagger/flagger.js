@@ -10,7 +10,7 @@ content = undefined;
 main();
 
 function main() {
-  mainVarDeclarations();
+  mainCatches();
 }
 
 
@@ -30,6 +30,18 @@ function mainVarDeclarations() {
     var filename = "./demo-varDeclarations.js";
     content = fs.readFileSync(filename, "utf-8");
     newContentDeclarations = instrumentDeclarations(content);
+    try {
+      eval(newContentDeclarations);
+    } catch (error) {
+        console.log("Error: evaluation of instrumented content failed.")
+        console.log(error);
+    }
+}
+
+function mainCatches() {
+    var filename = "./demo-catches.js";
+    content = fs.readFileSync(filename, "utf-8");
+    newContentDeclarations = instrumentCatches(content);
     try {
       eval(newContentDeclarations);
     } catch (error) {
@@ -89,7 +101,8 @@ function instrumentDeclarations(code) {
     filterFcn = function(node) {
       return node && node.kind === "var";
     }
-    tracer = esmorph.Tracer.InstrumentableLine(instrumentFcn, esmorph.Where.BEFORE, esprima.Syntax.VariableDeclaration, filterFcn);
+    tracer = esmorph.Tracer.InstrumentableLine(instrumentFcn, esmorph.Where.BEFORE, 
+      esprima.Syntax.VariableDeclaration, filterFcn);
     code = esmorph.modify(code, [tracer]);
     console.log(code)
 
@@ -97,6 +110,26 @@ function instrumentDeclarations(code) {
     return code;
 }
 
+/* ========= Code instrumentation: Track catch clauses ========*/
+
+
+function instrumentCatches(code) {
+    instrumentFcn = function (fn) {
+         // var names = fn.node.declarations.map(function(val) { return val.id.name});
+         var signature = 'console.log("instrumented a catch");';
+         return signature;
+    }
+    filterFcn = function(node) {
+      return true;
+    }
+    tracer = esmorph.Tracer.InstrumentableBlock(instrumentFcn, esmorph.Where.END, 
+      esprima.Syntax.CatchClause, filterFcn);
+    code = esmorph.modify(code, [tracer]);
+    console.log(code)
+
+    code = '(function() {\n' + code + '\n}())';
+    return code;
+}
 
 /* ========= Code instrumentation: Parameter type change detection ========*/
 
