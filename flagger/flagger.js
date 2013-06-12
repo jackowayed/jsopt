@@ -13,6 +13,7 @@ function main() {
   //mainVarDeclarations();
     mainFields();
     mainCatches();
+  mainReturnTypes();
 }
 
 
@@ -44,6 +45,18 @@ function mainCatches() {
     var filename = "./demo-catches.js";
     content = fs.readFileSync(filename, "utf-8");
     newContentDeclarations = instrumentCatches(content);
+    try {
+      eval(newContentDeclarations);
+    } catch (error) {
+        console.log("Error: evaluation of instrumented content failed.")
+        console.log(error);
+    }
+}
+
+function mainReturnTypes() {
+    var filename = "./demo-return-types.js";
+    content = fs.readFileSync(filename, "utf-8");
+    newContentDeclarations = instrumentReturns(content);
     try {
       eval(newContentDeclarations);
     } catch (error) {
@@ -232,6 +245,26 @@ function buildTree(tree, cur) {
     return newTree[cur.property.name];
 }
 
+function instrumentReturns(code) {             
+    instrumentFcn = function (fn) {
+         // var names = fn.node.declarations.map(function(val) { return val.id.name});
+         var signature = 'console.log("return coming");';
+         return signature;
+    }
+    filterFcn = function(node) {
+      return true;
+    }
+    tracer = esmorph.Tracer.InstrumentableLine(instrumentFcn, esmorph.Where.BEFORE, 
+      esprima.Syntax.ReturnStatement, filterFcn);
+    code = esmorph.modify(code, [tracer]);
+    console.log(code)
+
+    code = '(function() {\n' + code + '\n}())';
+    return code;
+}
+
+
+<<<<<<< HEAD
 function instrumentFieldTypes(code) {
     var fieldTraceFn = function (fn) {
         var mods = {};
