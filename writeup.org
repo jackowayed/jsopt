@@ -78,6 +78,12 @@ after lines. We allow targeted instrumentation as well; for example,
 instrumenting every return statement, or instrumenting every if
 statement (before it, after it, or in its consequent blocks).
 
+We also believe that our combination of static and dynamic checking is an underused idea that will become increasingly important as more work is done with dynamic languages. By reporting only optimization hurdles that are actually encountered when the JIT attempts to compile and optimize code, we can suppress issues in code that never runs enough to be JIT-ed and focus the programmer time on the highest-value optimization opportunities.
+
+This also would allow a system to find bugs and other anomalies most effectively. Some bugs should be found totally statically, some can be found statically but should be filtered based on whether the JIT actually encounters them. But some, especially in a dynamic language, must be caught at runtime. (A flexible code instrumentation tool is critical for instrumenting the code to find these.)
+
+We certainly did not invent this idea. Profile-guided optimization is a similar idea, but we have extended it beyond the realm of compilers looking to make optimization decisions.
+
 * Specifics
 ** Try / catch
 As of October 2012, V8 didn't even try -- ha -- to optimize try/catch
@@ -97,6 +103,5 @@ represent the object with a new field. Moving these dynamic field
 additions outside of performance sensitive inner loops and functions
 thus present an easy way to extract more performance with little
 source modification.
-** Deoptimization?
-** Returns?
-
+** Understanding paths through functions
+Esmorph includes a demo that counts how many times each function is called. However, there is no way to count which path through the function is taken, due to the shortcomings of Esmorph discussed above. With our extensions, a similar amount of code can give more understanding. As an example, we have implemented a tool that instruments each return statement to count how many times each return is taken.
